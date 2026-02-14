@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/providers/auth_provider.dart';
 import '../../../../shared/widgets/glassmorphic_container.dart';
 import '../../../notifications/presentation/screens/notification_settings_screen.dart';
 import '../../../notifications/data/models/notification_settings.dart';
@@ -23,11 +25,31 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final NotificationService _notificationService = NotificationService();
   NotificationSettings _notificationSettings = const NotificationSettings();
+  
+  // Audio player para preview de sonidos
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  NotificationSound? _playingSound;
+
+  // URLs de sonidos de preview (Pixabay - libre uso)
+  static const Map<NotificationSound, String> _soundPreviewUrls = {
+    NotificationSound.defaultSound: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3',
+    NotificationSound.gentle: 'https://cdn.pixabay.com/download/audio/2022/10/30/audio_b1c1314e2a.mp3',
+    NotificationSound.chime: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_12b0c7443c.mp3',
+    NotificationSound.zen: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_8cb749d484.mp3',
+    NotificationSound.nature: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3',
+    NotificationSound.soft: 'https://cdn.pixabay.com/download/audio/2022/11/17/audio_c788a9c931.mp3',
+  };
 
   @override
   void initState() {
     super.initState();
     _loadNotificationSettings();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _loadNotificationSettings() async {
@@ -46,6 +68,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() {
       _notificationSettings = newSettings;
     });
+  }
+
+  Future<void> _playPreview(NotificationSound sound) async {
+    try {
+      if (_playingSound == sound) {
+        // Si ya está sonando, pausar
+        await _audioPlayer.stop();
+        setState(() {
+          _playingSound = null;
+        });
+      } else {
+        // Reproducir preview
+        setState(() {
+          _playingSound = sound;
+        });
+        
+        final url = _soundPreviewUrls[sound];
+        if (url != null) {
+          await _audioPlayer.setUrl(url);
+          await _audioPlayer.play();
+          
+          // Escuchar cuando termine
+          _audioPlayer.playerStateStream.listen((state) {
+            if (state.processingState == ProcessingState.completed) {
+              if (mounted) {
+                setState(() {
+                  _playingSound = null;
+                });
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error playing preview: $e');
+      if (mounted) {
+        setState(() {
+          _playingSound = null;
+        });
+      }
+    }
   }
 
   @override
@@ -295,6 +358,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: AppTheme.spacingL)),
 
+            // Sección: Cuenta
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                child: _buildSection(
+                  context,
+                  isDark,
+                  'Cuenta',
+                  Icons.account_circle_rounded,
+                  [
+                    _buildSettingsItem(
+                      context,
+                      isDark,
+                      'Cerrar sesión',
+                      'Salir de tu cuenta',
+                      Icons.logout_rounded,
+                      isDestructive: true,
+                      onTap: () {
+                        _showSignOutDialog(context, isDark);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: AppTheme.spacingL)),
+
             // Versión de la app
             SliverToBoxAdapter(
               child: Padding(
@@ -533,10 +624,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     NotificationSound sound,
     bool isSelected,
   ) {
+    final isPlaying = _playingSound == sound;
+    
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
+          _audioPlayer.stop();
           _updateNotificationSound(sound);
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -554,20 +648,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
-                      : (isDark ? AppColors.darkBackground : AppColors.lightBackground),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusM),
-                ),
-                child: Icon(
-                  _getSoundIcon(sound),
-                  color: isSelected
-                      ? Colors.white
-                      : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+              // Botón de reproducir
+              GestureDetector(
+                onTap: () => _playPreview(sound),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: isPlaying
+                        ? (isDark ? AppColors.darkSecondary : AppColors.lightSecondary)
+                        : isSelected
+                            ? (isDark ? AppColors.darkPrimary : AppColors.lightPrimary)
+                            : (isDark ? AppColors.darkBackground : AppColors.lightBackground),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                  ),
+                  child: isPlaying
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(
+                          Icons.play_arrow_rounded,
+                          color: isSelected || isPlaying
+                              ? Colors.white
+                              : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                        ),
                 ),
               ),
               const SizedBox(width: AppTheme.spacingM),
@@ -704,6 +813,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               backgroundColor: Colors.red,
             ),
             child: const Text('Borrar todo'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusL),
+        ),
+        title: const Text('Cerrar sesión'),
+        content: const Text(
+          '¿Estás seguro de que quieres cerrar sesión?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(authProvider.notifier).signOut();
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Cerrar sesión'),
           ),
         ],
       ),

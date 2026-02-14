@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/constants/app_strings.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/providers/auth_provider.dart';
 import 'shared/widgets/main_shell.dart';
 import 'features/notifications/services/notification_service.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 
 /// Punto de entrada de Micro-Ritualist
 /// App de bienestar basada en micro-rutinas de 2-5 minutos
@@ -69,9 +71,9 @@ class MicroRitualistApp extends ConsumerWidget {
       themeMode: themeMode, // Controlado por el provider
       
       // ═══════════════════════════════════════════════════════════════
-      // PANTALLA INICIAL - Shell con navegación persistente
+      // PANTALLA INICIAL - Basada en estado de autenticación
       // ═══════════════════════════════════════════════════════════════
-      home: const MainShell(),
+      home: const AuthWrapper(),
       
       // ═══════════════════════════════════════════════════════════════
       // RUTAS (para navegación futura)
@@ -111,5 +113,32 @@ class MicroRitualistApp extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+/// Widget que decide qué pantalla mostrar según el estado de autenticación
+class AuthWrapper extends ConsumerWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    // Mientras se verifica el estado inicial
+    if (authState.status == AuthStatus.initial) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Si está autenticado, mostrar la app principal
+    if (authState.status == AuthStatus.authenticated) {
+      return const MainShell();
+    }
+
+    // Si no está autenticado, mostrar login
+    return const LoginScreen();
   }
 }

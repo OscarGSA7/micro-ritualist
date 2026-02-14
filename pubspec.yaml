@@ -32,6 +32,9 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.2
   
+  # Audio
+  just_audio: ^0.9.36
+  
   # Utils
   intl: ^0.19.0
 
