@@ -140,26 +140,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     // Escuchar cambios de autenticación de Supabase
-    _authSubscription = AuthService.instance.authStateChanges.listen(
-      (authState) {
-        final user = authState.session?.user;
-        if (user != null) {
+    final authStream = AuthService.instance.authStateChanges;
+    if (authStream != null) {
+      _authSubscription = authStream.listen(
+        (authState) {
+          final user = authState.session?.user;
+          if (user != null) {
+            state = AuthState(
+              status: AuthStatus.authenticated,
+              user: UserModel.fromSupabaseUser(user),
+            );
+          } else {
+            // Verificar si hay usuario invitado local
+            _checkLocalGuestUser();
+          }
+        },
+        onError: (error) {
           state = AuthState(
-            status: AuthStatus.authenticated,
-            user: UserModel.fromSupabaseUser(user),
+            status: AuthStatus.unauthenticated,
+            error: error.toString(),
           );
-        } else {
-          // Verificar si hay usuario invitado local
-          _checkLocalGuestUser();
-        }
-      },
-      onError: (error) {
-        state = AuthState(
-          status: AuthStatus.unauthenticated,
-          error: error.toString(),
-        );
-      },
-    );
+        },
+      );
+    }
 
     // Verificar sesión actual
     final currentUser = AuthService.instance.currentUser;
@@ -228,7 +231,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         name: name,
       );
 
-      if (response.user != null) {
+      if (response != null && response.user != null) {
         // Limpiar estado de invitado
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_guestKey);
@@ -298,7 +301,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
       );
 
-      if (response.user != null) {
+      if (response != null && response.user != null) {
         // Limpiar estado de invitado
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_guestKey);

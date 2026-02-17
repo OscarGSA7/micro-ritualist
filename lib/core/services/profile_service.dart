@@ -103,16 +103,21 @@ class UserSettingsDbModel {
 /// Servicio de perfil de usuario
 class ProfileService {
   static ProfileService? _instance;
-  final SupabaseClient _client;
   
-  ProfileService._() : _client = SupabaseService.instance.client;
+  ProfileService._();
   
   static ProfileService get instance {
     _instance ??= ProfileService._();
     return _instance!;
   }
 
+  /// Cliente de Supabase (null si no está inicializado)
+  SupabaseClient? get _client => SupabaseService.instance.clientOrNull;
+  
   String? get _userId => SupabaseService.instance.currentUserId;
+  
+  /// Verificar si el servicio está disponible
+  bool get isAvailable => _client != null && _userId != null;
 
   // ═══════════════════════════════════════════════════════════════════
   // PERFIL
@@ -120,9 +125,9 @@ class ProfileService {
 
   /// Obtener perfil del usuario actual
   Future<ProfileDbModel?> getProfile() async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('profiles')
         .select()
         .eq('id', _userId!)
@@ -138,7 +143,7 @@ class ProfileService {
     String? avatarUrl,
     String? timezone,
   }) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name;
@@ -147,7 +152,7 @@ class ProfileService {
 
     if (updates.isEmpty) return await getProfile();
 
-    final response = await _client
+    final response = await _client!
         .from('profiles')
         .update(updates)
         .eq('id', _userId!)
@@ -163,9 +168,9 @@ class ProfileService {
 
   /// Obtener configuración del usuario
   Future<UserSettingsDbModel?> getSettings() async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('user_settings')
         .select()
         .eq('user_id', _userId!)
@@ -185,7 +190,7 @@ class ProfileService {
     bool? soundEnabled,
     bool? hapticFeedback,
   }) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
     final updates = <String, dynamic>{};
     if (notificationsEnabled != null) updates['notifications_enabled'] = notificationsEnabled;
@@ -198,7 +203,7 @@ class ProfileService {
 
     if (updates.isEmpty) return await getSettings();
 
-    final response = await _client
+    final response = await _client!
         .from('user_settings')
         .update(updates)
         .eq('user_id', _userId!)
@@ -214,7 +219,7 @@ class ProfileService {
 
   /// Obtener estadísticas generales del usuario
   Future<Map<String, dynamic>> getUserStats() async {
-    if (_userId == null) {
+    if (_client == null || _userId == null) {
       return {
         'total_rituals': 0,
         'total_completions': 0,
@@ -229,20 +234,20 @@ class ProfileService {
     final profile = await getProfile();
     
     // Obtener conteo de rituales
-    final ritualsResponse = await _client
+    final ritualsResponse = await _client!
         .from('rituals')
         .select('id')
         .eq('user_id', _userId!)
         .eq('is_active', true);
     
     // Obtener completaciones
-    final completionsResponse = await _client
+    final completionsResponse = await _client!
         .from('ritual_completions')
         .select('id, duration_seconds, completed_at')
         .eq('user_id', _userId!);
     
     // Obtener mejor racha
-    final streaksResponse = await _client
+    final streaksResponse = await _client!
         .from('streaks')
         .select('longest_streak')
         .eq('user_id', _userId!)

@@ -177,16 +177,22 @@ class RitualCompletionDbModel {
 /// Servicio de rituales con Supabase
 class RitualService {
   static RitualService? _instance;
-  final SupabaseClient _client;
   
-  RitualService._() : _client = SupabaseService.instance.client;
+  RitualService._();
   
   static RitualService get instance {
     _instance ??= RitualService._();
     return _instance!;
   }
 
+  /// Cliente de Supabase (null si no está inicializado)
+  SupabaseClient? get _client => SupabaseService.instance.clientOrNull;
+  
+  /// ID del usuario actual
   String? get _userId => SupabaseService.instance.currentUserId;
+  
+  /// Verificar si el servicio está disponible
+  bool get isAvailable => _client != null && _userId != null;
 
   // ═══════════════════════════════════════════════════════════════════
   // RITUALES
@@ -194,9 +200,9 @@ class RitualService {
 
   /// Obtener todos los rituales del usuario
   Future<List<RitualDbModel>> getRituals() async {
-    if (_userId == null) return [];
+    if (_client == null || _userId == null) return [];
     
-    final response = await _client
+    final response = await _client!
         .from('rituals')
         .select()
         .eq('user_id', _userId!)
@@ -210,9 +216,9 @@ class RitualService {
 
   /// Obtener un ritual por ID
   Future<RitualDbModel?> getRitualById(String ritualId) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
     
-    final response = await _client
+    final response = await _client!
         .from('rituals')
         .select()
         .eq('id', ritualId)
@@ -234,9 +240,9 @@ class RitualService {
     List<int>? repeatDays,
     String? preferredTime,
   }) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('rituals')
         .insert({
           'user_id': _userId,
@@ -258,9 +264,9 @@ class RitualService {
 
   /// Actualizar un ritual
   Future<RitualDbModel?> updateRitual(String ritualId, Map<String, dynamic> updates) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('rituals')
         .update(updates)
         .eq('id', ritualId)
@@ -273,9 +279,9 @@ class RitualService {
 
   /// Desactivar un ritual (soft delete)
   Future<bool> deactivateRitual(String ritualId) async {
-    if (_userId == null) return false;
+    if (_client == null || _userId == null) return false;
 
-    await _client
+    await _client!
         .from('rituals')
         .update({'is_active': false})
         .eq('id', ritualId)
@@ -286,9 +292,9 @@ class RitualService {
 
   /// Eliminar un ritual permanentemente
   Future<bool> deleteRitual(String ritualId) async {
-    if (_userId == null) return false;
+    if (_client == null || _userId == null) return false;
 
-    await _client
+    await _client!
         .from('rituals')
         .delete()
         .eq('id', ritualId)
@@ -299,10 +305,10 @@ class RitualService {
 
   /// Reordenar rituales
   Future<void> reorderRituals(List<String> ritualIds) async {
-    if (_userId == null) return;
+    if (_client == null || _userId == null) return;
 
     for (int i = 0; i < ritualIds.length; i++) {
-      await _client
+      await _client!
           .from('rituals')
           .update({'sort_order': i})
           .eq('id', ritualIds[i])
@@ -322,9 +328,9 @@ class RitualService {
     String? moodAfter,
     String? notes,
   }) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('ritual_completions')
         .insert({
           'user_id': _userId,
@@ -343,13 +349,13 @@ class RitualService {
 
   /// Obtener completaciones de hoy
   Future<List<RitualCompletionDbModel>> getTodayCompletions() async {
-    if (_userId == null) return [];
+    if (_client == null || _userId == null) return [];
     
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    final response = await _client
+    final response = await _client!
         .from('ritual_completions')
         .select()
         .eq('user_id', _userId!)
@@ -366,9 +372,9 @@ class RitualService {
     DateTime startDate,
     DateTime endDate,
   ) async {
-    if (_userId == null) return [];
+    if (_client == null || _userId == null) return [];
 
-    final response = await _client
+    final response = await _client!
         .from('ritual_completions')
         .select()
         .eq('user_id', _userId!)
@@ -383,13 +389,13 @@ class RitualService {
 
   /// Verificar si un ritual ya fue completado hoy
   Future<bool> isRitualCompletedToday(String ritualId) async {
-    if (_userId == null) return false;
+    if (_client == null || _userId == null) return false;
     
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.month, today.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    final response = await _client
+    final response = await _client!
         .from('ritual_completions')
         .select('id')
         .eq('user_id', _userId!)
@@ -406,7 +412,7 @@ class RitualService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    if (_userId == null) {
+    if (_client == null || _userId == null) {
       return {
         'total_completions': 0,
         'total_minutes': 0,
@@ -415,7 +421,7 @@ class RitualService {
       };
     }
 
-    var query = _client
+    var query = _client!
         .from('ritual_completions')
         .select('id, duration_seconds, completed_at, ritual_id')
         .eq('user_id', _userId!);

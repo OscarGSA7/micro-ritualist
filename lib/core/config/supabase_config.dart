@@ -14,5 +14,9 @@ class SupabaseConfig {
   static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2dm9xa21yemtlZW13Z3dqeGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzE2NTcsImV4cCI6MjA4Njg0NzY1N30.OAma_bex7Y0LeI4jw4EN98i3-FoxFKMb5ZPh1yXyUEU';
   
   /// Verificar si la configuración es válida
-  static bool get isConfigured => anonKey != 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2dm9xa21yemtlZW13Z3dqeGhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzE2NTcsImV4cCI6MjA4Njg0NzY1N30.OAma_bex7Y0LeI4jw4EN98i3-FoxFKMb5ZPh1yXyUEU' && anonKey.isNotEmpty;
+  /// La key es válida si no es el placeholder 'YOUR_ANON_KEY' y no está vacía
+  static bool get isConfigured => 
+      anonKey != 'YOUR_ANON_KEY' && 
+      anonKey.isNotEmpty && 
+      anonKey.startsWith('eyJ');  // JWT tokens empiezan con eyJ
 }

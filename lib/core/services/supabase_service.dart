@@ -6,6 +6,7 @@ import '../config/supabase_config.dart';
 /// Maneja la inicialización y proporciona acceso al cliente
 class SupabaseService {
   static SupabaseService? _instance;
+  static bool _isInitialized = false;
   
   SupabaseService._();
   
@@ -13,12 +14,23 @@ class SupabaseService {
     _instance ??= SupabaseService._();
     return _instance!;
   }
+
+  /// Verificar si Supabase está inicializado
+  static bool get isInitialized => _isInitialized;
   
-  /// Cliente de Supabase
-  SupabaseClient get client => Supabase.instance.client;
+  /// Cliente de Supabase (null si no está inicializado)
+  SupabaseClient? get clientOrNull => _isInitialized ? Supabase.instance.client : null;
+  
+  /// Cliente de Supabase (lanza error si no está inicializado)
+  SupabaseClient get client {
+    if (!_isInitialized) {
+      throw Exception('Supabase no está inicializado. Usa clientOrNull para acceso seguro.');
+    }
+    return Supabase.instance.client;
+  }
   
   /// Usuario actual autenticado
-  User? get currentUser => client.auth.currentUser;
+  User? get currentUser => clientOrNull?.auth.currentUser;
   
   /// ID del usuario actual
   String? get currentUserId => currentUser?.id;
@@ -28,6 +40,8 @@ class SupabaseService {
   
   /// Inicializar Supabase
   static Future<void> initialize() async {
+    if (_isInitialized) return; // Ya inicializado
+    
     if (!SupabaseConfig.isConfigured) {
       throw Exception(
         'Supabase no está configurado. '
@@ -45,8 +59,10 @@ class SupabaseService {
         logLevel: RealtimeLogLevel.info,
       ),
     );
+    
+    _isInitialized = true;
   }
   
   /// Stream de cambios en el estado de autenticación
-  Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+  Stream<AuthState>? get authStateChanges => clientOrNull?.auth.onAuthStateChange;
 }

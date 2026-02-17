@@ -64,22 +64,27 @@ class StreakDbModel {
 /// Servicio de rachas con Supabase
 class StreakService {
   static StreakService? _instance;
-  final SupabaseClient _client;
   
-  StreakService._() : _client = SupabaseService.instance.client;
+  StreakService._();
   
   static StreakService get instance {
     _instance ??= StreakService._();
     return _instance!;
   }
 
+  /// Cliente de Supabase (null si no está inicializado)
+  SupabaseClient? get _client => SupabaseService.instance.clientOrNull;
+  
   String? get _userId => SupabaseService.instance.currentUserId;
+  
+  /// Verificar si el servicio está disponible
+  bool get isAvailable => _client != null && _userId != null;
 
   /// Obtener racha de un ritual específico
   Future<StreakDbModel?> getStreakForRitual(String ritualId) async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('streaks')
         .select()
         .eq('user_id', _userId!)
@@ -92,9 +97,9 @@ class StreakService {
 
   /// Obtener todas las rachas del usuario
   Future<List<StreakDbModel>> getAllStreaks() async {
-    if (_userId == null) return [];
+    if (_client == null || _userId == null) return [];
 
-    final response = await _client
+    final response = await _client!
         .from('streaks')
         .select()
         .eq('user_id', _userId!);
@@ -106,9 +111,9 @@ class StreakService {
 
   /// Obtener la mejor racha actual del usuario
   Future<StreakDbModel?> getBestCurrentStreak() async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('streaks')
         .select()
         .eq('user_id', _userId!)
@@ -122,9 +127,9 @@ class StreakService {
 
   /// Obtener la mejor racha histórica del usuario
   Future<StreakDbModel?> getBestAllTimeStreak() async {
-    if (_userId == null) return null;
+    if (_client == null || _userId == null) return null;
 
-    final response = await _client
+    final response = await _client!
         .from('streaks')
         .select()
         .eq('user_id', _userId!)
@@ -202,12 +207,12 @@ class StreakService {
 
   /// Obtener calendario de actividad (últimos N días)
   Future<Map<DateTime, int>> getActivityCalendar({int days = 30}) async {
-    if (_userId == null) return {};
+    if (_client == null || _userId == null) return {};
 
     final endDate = DateTime.now();
     final startDate = endDate.subtract(Duration(days: days));
 
-    final response = await _client
+    final response = await _client!
         .from('ritual_completions')
         .select('completed_at')
         .eq('user_id', _userId!)
