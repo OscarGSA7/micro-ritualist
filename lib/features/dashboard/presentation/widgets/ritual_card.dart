@@ -166,8 +166,16 @@ class _RitualCardState extends State<RitualCard> {
         key: Key(ritual.id),
         direction: DismissDirection.endToStart,
         background: _buildDeleteBackground(isDark),
-        confirmDismiss: (_) => _confirmDelete(context),
-        onDismissed: (_) => widget.onDelete?.call(),
+        confirmDismiss: (_) async {
+          final confirmed = await _confirmDelete(context);
+          if (confirmed) {
+            // Llamar a onDelete y esperar a que se complete
+            widget.onDelete?.call();
+          }
+          // Siempre devolver false para evitar el error del Dismissible
+          // El widget se removerá cuando el estado se actualice
+          return false;
+        },
         child: card,
       );
     }

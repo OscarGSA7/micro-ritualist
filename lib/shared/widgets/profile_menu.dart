@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/providers/auth_provider.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 
 /// Menú de perfil con opciones de usuario y configuración
@@ -50,7 +51,7 @@ class ProfileMenu extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header del perfil
-            _buildProfileHeader(context, isDark),
+            _buildProfileHeader(context, isDark, ref),
             
             const SizedBox(height: AppTheme.spacingM),
             
@@ -144,7 +145,10 @@ class ProfileMenu extends ConsumerWidget {
         .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1));
   }
 
-  Widget _buildProfileHeader(BuildContext context, bool isDark) {
+  Widget _buildProfileHeader(BuildContext context, bool isDark, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final userName = authState.user?.name ?? 'Usuario';
+    
     return Row(
       children: [
         // Avatar
@@ -176,7 +180,7 @@ class ProfileMenu extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Usuario',
+                userName,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

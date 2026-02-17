@@ -170,7 +170,7 @@ class _RitualTimerScreenState extends State<RitualTimerScreen>
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.of(context).pop(); // Cerrar diálogo
-                  Navigator.of(context).pop(true); // Volver al dashboard con resultado
+                  Navigator.of(context).pop({'completed': true, 'progress': 1.0}); // Volver con resultado completado
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.ritual.color,
@@ -233,7 +233,9 @@ class _RitualTimerScreenState extends State<RitualTimerScreen>
         ElevatedButton(
           onPressed: () {
             Navigator.of(context).pop(); // Cerrar diálogo
-            Navigator.of(context).pop(false); // Volver al dashboard sin completar
+            // Devolver progreso parcial al interrumpir
+            final progress = 1.0 - (_remainingSeconds / _totalSeconds);
+            Navigator.of(context).pop({'completed': false, 'progress': progress});
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.error,

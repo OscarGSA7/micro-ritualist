@@ -467,11 +467,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _handleSubmit() async {
     final authNotifier = ref.read(authProvider.notifier);
     
-    final success = await authNotifier.signInWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text,
-      _nameController.text.trim(),
-    );
+    bool success;
+    if (_isLogin) {
+      // Iniciar sesión
+      success = await authNotifier.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+    } else {
+      // Registrarse
+      success = await authNotifier.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        name: _nameController.text.trim(),
+      );
+    }
     
     if (success && mounted) {
       // La navegación se maneja automáticamente en main.dart

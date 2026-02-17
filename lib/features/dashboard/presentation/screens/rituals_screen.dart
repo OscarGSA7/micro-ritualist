@@ -20,65 +20,29 @@ class RitualsScreen extends ConsumerStatefulWidget {
 class _RitualsScreenState extends ConsumerState<RitualsScreen> {
   RitualCategory? _selectedCategory;
 
-  // Datos de ejemplo para cuando no hay conexión al backend
-  List<RitualModel> get _sampleRituals => [
-    const RitualModel(
-      id: '1',
-      title: 'Respiración 4-7-8',
-      description: 'Técnica de respiración para calmar la mente',
-      durationMinutes: 3,
-      icon: Icons.air_rounded,
-      color: AppColors.lightPrimary,
-      progress: 0.7,
-      category: RitualCategory.breathing,
-    ),
-    const RitualModel(
-      id: '2',
-      title: 'Estiramientos suaves',
-      description: 'Micro-movimientos para activar el cuerpo',
-      durationMinutes: 5,
-      icon: Icons.self_improvement_rounded,
-      color: AppColors.lightSecondary,
-      progress: 0.3,
-      category: RitualCategory.movement,
-    ),
-    const RitualModel(
-      id: '3',
-      title: 'Gratitud consciente',
-      description: 'Reflexiona sobre 3 cosas positivas del día',
-      durationMinutes: 2,
-      icon: Icons.favorite_rounded,
-      color: AppColors.lightAccent,
-      progress: 0.0,
-      category: RitualCategory.mindfulness,
-    ),
-  ];
-
   List<RitualModel> _getRituals(RitualsState state) {
     // Convertir rituales del backend a RitualModel para la UI
-    final List<RitualModel> rituals;
-    
     if (state.rituals.isEmpty) {
-      rituals = _sampleRituals;
-    } else {
-      rituals = state.rituals.map((r) {
-        final todayCompletion = state.todayCompletions.any((c) => c.ritualId == r.id);
-        final streak = state.streaks[r.id];
-        
-        return RitualModel(
-          id: r.id,
-          title: r.title,
-          description: r.description ?? '',
-          durationMinutes: r.durationMinutes,
-          icon: _getIconFromName(r.iconName),
-          color: _getColorFromHex(r.colorHex),
-          progress: todayCompletion ? 1.0 : 0.0,
-          isCompleted: todayCompletion,
-          category: _getCategoryFromString(r.category),
-          streak: streak?.currentStreak ?? 0,
-        );
-      }).toList();
+      return []; // Lista vacía - no hay rituales
     }
+    
+    final List<RitualModel> rituals = state.rituals.map((r) {
+      final todayCompletion = state.todayCompletions.any((c) => c.ritualId == r.id);
+      final streak = state.streaks[r.id];
+      
+      return RitualModel(
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        durationMinutes: r.durationMinutes,
+        icon: _getIconFromName(r.iconName),
+        color: _getColorFromHex(r.colorHex),
+        progress: todayCompletion ? 1.0 : 0.0,
+        isCompleted: todayCompletion,
+        category: _getCategoryFromString(r.category),
+        streak: streak?.currentStreak ?? 0,
+      );
+    }).toList();
     
     if (_selectedCategory == null) {
       return rituals;
@@ -304,31 +268,38 @@ class _RitualsScreenState extends ConsumerState<RitualsScreen> {
                 ),
               ),
 
-            // Lista de rituales
+            // Lista de rituales o estado vacío
             if (!ritualsState.isLoading)
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (index >= filteredRituals.length) return null;
-                      final ritual = filteredRituals[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                        child: RitualCard(
-                          ritual: ritual,
-                          animationIndex: index,
-                          onTap: () => _onRitualTap(ritual),
-                          onStart: () => _onRitualStart(ritual),
-                          onComplete: () => _onRitualComplete(ritual),
-                          onDelete: () => _onRitualDelete(ritual),
-                        ),
-                      );
-                    },
-                    childCount: filteredRituals.length,
+              filteredRituals.isEmpty
+                ? SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppTheme.spacingL),
+                      child: _buildEmptyState(context, isDark),
+                    ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index >= filteredRituals.length) return null;
+                          final ritual = filteredRituals[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
+                            child: RitualCard(
+                              ritual: ritual,
+                              animationIndex: index,
+                              onTap: () => _onRitualTap(ritual),
+                              onStart: () => _onRitualStart(ritual),
+                              onComplete: () => _onRitualComplete(ritual),
+                              onDelete: () => _onRitualDelete(ritual),
+                            ),
+                          );
+                        },
+                        childCount: filteredRituals.length,
+                      ),
+                    ),
                   ),
-                ),
-              ),
 
             // Espacio inferior para el bottom nav
             const SliverToBoxAdapter(
@@ -415,6 +386,50 @@ class _RitualsScreenState extends ConsumerState<RitualsScreen> {
     );
   }
 
+  /// Widget que se muestra cuando no hay rituales
+  Widget _buildEmptyState(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingXL),
+      decoration: BoxDecoration(
+        color: isDark 
+            ? AppColors.darkSurface.withOpacity(0.5) 
+            : AppColors.lightSurface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(AppTheme.radiusL),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withOpacity(0.1) 
+              : Colors.black.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.spa_outlined,
+            size: 64,
+            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+          ),
+          const SizedBox(height: AppTheme.spacingL),
+          Text(
+            'No tienes rituales',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            'Crea tu primer ritual tocando el botón + para comenzar tu viaje de bienestar',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.95, 0.95));
+  }
+
   void _onRitualTap(RitualModel ritual) {
     debugPrint('Ritual tapped: ${ritual.title}');
     // TODO: Mostrar detalle del ritual
@@ -422,16 +437,21 @@ class _RitualsScreenState extends ConsumerState<RitualsScreen> {
 
   void _onRitualStart(RitualModel ritual) async {
     debugPrint('Ritual started: ${ritual.title}');
-    final completed = await Navigator.of(context).push<bool>(
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
         builder: (context) => RitualTimerScreen(ritual: ritual),
       ),
     );
 
-    if (completed == true) {
+    if (result != null && result['completed'] == true) {
       debugPrint('Ritual completed: ${ritual.title}');
       // Marcar como completado en el provider
       ref.read(ritualsProvider.notifier).completeRitual(ritual.id);
+    } else if (result != null) {
+      // El ritual fue interrumpido - guardar progreso parcial
+      final progress = result['progress'] as double? ?? 0.0;
+      debugPrint('Ritual interrupted at ${(progress * 100).toInt()}%: ${ritual.title}');
+      ref.read(ritualsProvider.notifier).updateRitualProgress(ritual.id, progress);
     }
   }
 

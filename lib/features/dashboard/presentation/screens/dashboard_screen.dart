@@ -1,9 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/providers/auth_provider.dart';
+import '../../../../core/providers/rituals_provider.dart';
 import '../../../../shared/widgets/profile_menu.dart';
 import '../../../wellness/presentation/widgets/wellness_check_card.dart';
 import '../../../wellness/services/wellness_analysis_service.dart';
@@ -16,14 +19,14 @@ import 'rituals_screen.dart';
 
 /// Dashboard Principal - Pantalla principal de Micro-Ritualist
 /// Diseño Bento Box con estética minimalista Apple-style
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // Key para posicionar el menú de perfil
   final GlobalKey _avatarKey = GlobalKey();
 
@@ -53,39 +56,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Consejo del día (seleccionado aleatoriamente)
   late String _dailyTip;
 
-  // Datos de ejemplo - En producción vendrán del estado
-  final List<RitualModel> _sampleRituals = [
-    const RitualModel(
-      id: '1',
-      title: 'Respiración 4-7-8',
-      description: 'Técnica de respiración para calmar la mente',
-      durationMinutes: 3,
-      icon: Icons.air_rounded,
-      color: AppColors.lightPrimary,
-      progress: 0.7,
-      category: RitualCategory.breathing,
-    ),
-    const RitualModel(
-      id: '2',
-      title: 'Estiramientos suaves',
-      description: 'Micro-movimientos para activar el cuerpo',
-      durationMinutes: 5,
-      icon: Icons.self_improvement_rounded,
-      color: AppColors.lightSecondary,
-      progress: 0.3,
-      category: RitualCategory.movement,
-    ),
-    const RitualModel(
-      id: '3',
-      title: 'Gratitud consciente',
-      description: 'Reflexiona sobre 3 cosas positivas del día',
-      durationMinutes: 2,
-      icon: Icons.favorite_rounded,
-      color: AppColors.lightAccent,
+  // Convertir rituales del provider a RitualModel para la UI
+  List<RitualModel> _getRitualsFromState(RitualsState state) {
+    if (state.rituals.isEmpty) return [];
+    return state.rituals.map((r) => RitualModel(
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      durationMinutes: r.durationMinutes,
+      icon: _getCategoryIcon(r.category),
+      color: _getCategoryColor(r.colorHex),
       progress: 0.0,
-      category: RitualCategory.mindfulness,
-    ),
-  ];
+      category: _parseCategory(r.category),
+    )).toList();
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'breathing': return Icons.air_rounded;
+      case 'movement': return Icons.directions_walk_rounded;
+      case 'mindfulness': return Icons.self_improvement_rounded;
+      case 'hydration': return Icons.local_drink_rounded;
+      case 'gratitude': return Icons.favorite_rounded;
+      default: return Icons.spa_rounded;
+    }
+  }
+
+  Color _getCategoryColor(String? hexColor) {
+    if (hexColor == null || hexColor.isEmpty) return AppColors.lightPrimary;
+    try {
+      return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
+    } catch (e) {
+      return AppColors.lightPrimary;
+    }
+  }
+
+  RitualCategory _parseCategory(String category) {
+    switch (category) {
+      case 'breathing': return RitualCategory.breathing;
+      case 'movement': return RitualCategory.movement;
+      case 'mindfulness': return RitualCategory.mindfulness;
+      case 'hydration': return RitualCategory.hydration;
+      case 'gratitude': return RitualCategory.gratitude;
+      default: return RitualCategory.custom;
+    }
+  }
 
   @override
   void initState() {
@@ -97,6 +112,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ritualsState = ref.watch(ritualsProvider);
+    final rituals = _getRitualsFromState(ritualsState);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
@@ -168,24 +185,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // ═══════════════════════════════════════════════════════════
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index >= _sampleRituals.length) return null;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                      child: RitualCard(
-                        ritual: _sampleRituals[index],
-                        animationIndex: index,
-                        onTap: () => _onRitualTap(_sampleRituals[index]),
-                        onStart: () => _onRitualStart(_sampleRituals[index]),
-                        onComplete: () => _onRitualComplete(_sampleRituals[index]),
-                      ),
-                    );
-                  },
-                  childCount: _sampleRituals.length,
-                ),
-              ),
+              sliver: rituals.isEmpty
+                ? SliverToBoxAdapter(
+                    child: _buildEmptyRitualsCard(context, isDark),
+                  )
+                : SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index >= rituals.length) return null;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
+                          child: RitualCard(
+                            ritual: rituals[index],
+                            animationIndex: index,
+                            onTap: () => _onRitualTap(rituals[index]),
+                            onStart: () => _onRitualStart(rituals[index]),
+                            onComplete: () => _onRitualComplete(rituals[index]),
+                          ),
+                        );
+                      },
+                      childCount: rituals.length,
+                    ),
+                  ),
             ),
 
             // Espacio inferior para el bottom nav
@@ -355,7 +376,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Header con saludo personalizado según la hora del día
   Widget _buildHeader(BuildContext context, bool isDark) {
     final greeting = _getGreetingByTime();
-    const userName = 'Usuario'; // En producción, obtener del estado
+    final authState = ref.watch(authProvider);
+    final userName = authState.user?.name ?? 'Usuario';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,6 +535,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ).animate().fadeIn(duration: 400.ms, delay: 400.ms);
   }
 
+  /// Tarjeta cuando no hay rituales creados
+  Widget _buildEmptyRitualsCard(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingXL),
+      decoration: BoxDecoration(
+        color: isDark 
+            ? AppColors.darkSurface.withOpacity(0.5) 
+            : AppColors.lightSurface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(AppTheme.radiusL),
+        border: Border.all(
+          color: isDark 
+              ? Colors.white.withOpacity(0.1) 
+              : Colors.black.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.spa_outlined,
+            size: 48,
+            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          Text(
+            'No tienes rituales aún',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            'Crea tu primer ritual para comenzar tu viaje de bienestar',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingL),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RitualsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Crear ritual'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+                vertical: AppTheme.spacingM,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms, delay: 500.ms);
+  }
+
   /// Obtener saludo según la hora del día
   String _getGreetingByTime() {
     final hour = DateTime.now().hour;
@@ -663,24 +748,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _onRitualStart(RitualModel ritual) async {
     debugPrint('Ritual started: ${ritual.title}');
     // Navegar a la pantalla de timer
-    final completed = await Navigator.of(context).push<bool>(
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
         builder: (context) => RitualTimerScreen(ritual: ritual),
       ),
     );
     
-    if (completed == true) {
-      // El ritual fue completado
+    if (result != null && result['completed'] == true) {
+      // El ritual fue completado - registrar en el provider
       debugPrint('Ritual completed successfully: ${ritual.title}');
-      // TODO: Actualizar estado del ritual
-    } else {
-      // El ritual fue interrumpido
-      debugPrint('Ritual interrupted: ${ritual.title}');
+      await ref.read(ritualsProvider.notifier).completeRitual(ritual.id);
+    } else if (result != null) {
+      // El ritual fue interrumpido - guardar progreso parcial
+      final progress = result['progress'] as double? ?? 0.0;
+      debugPrint('Ritual interrupted at ${(progress * 100).toInt()}%: ${ritual.title}');
+      ref.read(ritualsProvider.notifier).updateRitualProgress(ritual.id, progress);
     }
   }
 
-  void _onRitualComplete(RitualModel ritual) {
+  void _onRitualComplete(RitualModel ritual) async {
     debugPrint('Ritual completed: ${ritual.title}');
-    // TODO: Marcar como completado
+    await ref.read(ritualsProvider.notifier).completeRitual(ritual.id);
   }
 }

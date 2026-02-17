@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/providers/auth_provider.dart';
+import '../../../../core/services/profile_service.dart';
+import '../../../../core/services/streak_service.dart';
+import '../../../../core/services/ritual_service.dart';
 import '../../../../shared/widgets/glassmorphic_container.dart';
 import '../../../notifications/presentation/screens/notification_settings_screen.dart';
 
@@ -19,16 +23,92 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  // Datos de ejemplo - En producción vendrán del estado
-  final _userData = _UserData(
-    name: 'Usuario',
-    email: 'usuario@ejemplo.com',
-    joinDate: DateTime(2024, 1, 15),
-    totalRitualsCompleted: 127,
-    currentStreak: 7,
-    longestStreak: 14,
-    favoriteRitual: 'Respiración 4-7-8',
-  );
+  // Datos del usuario - Se cargan desde la base de datos
+  late _UserData _userData;
+  bool _isLoading = true;
+  List<_RecentCompletion> _recentCompletions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _userData = _UserData(
+      name: 'Usuario',
+      email: '',
+      joinDate: DateTime.now(),
+      totalRitualsCompleted: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      favoriteRitual: '-',
+    );
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      // Obtener usuario autenticado
+      final authState = ref.read(authProvider);
+      final user = authState.user;
+      
+      // Obtener estadísticas
+      final stats = await ProfileService.instance.getUserStats();
+      
+      // Obtener mejor racha actual
+      final bestStreak = await StreakService.instance.getBestCurrentStreak();
+      
+      // Obtener completaciones recientes (últimos 7 días)
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      final completions = await RitualService.instance.getCompletionsByDateRange(weekAgo, now);
+      
+      // Obtener los rituales para mapear IDs a títulos
+      final rituals = await RitualService.instance.getRituals();
+      final ritualMap = {for (var r in rituals) r.id: r.title};
+      
+      // Convertir completaciones a formato para la UI
+      final recentComps = completions.take(5).map((c) {
+        final ritualTitle = ritualMap[c.ritualId] ?? 'Ritual';
+        final dateStr = _formatCompletionDate(c.completedAt);
+        return _RecentCompletion(ritualTitle, dateStr, true);
+      }).toList();
+      
+      if (mounted) {
+        setState(() {
+          _userData = _UserData(
+            name: user?.name ?? 'Usuario',
+            email: user?.email ?? '',
+            joinDate: stats['member_since'] ?? DateTime.now(),
+            totalRitualsCompleted: stats['total_completions'] ?? 0,
+            currentStreak: bestStreak?.effectiveStreak ?? 0,
+            longestStreak: stats['best_streak'] ?? 0,
+            favoriteRitual: '-',
+          );
+          _recentCompletions = recentComps;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _formatCompletionDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final completionDate = DateTime(date.year, date.month, date.day);
+    
+    final timeStr = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    
+    if (completionDate == today) {
+      return 'Hoy, $timeStr';
+    } else if (completionDate == yesterday) {
+      return 'Ayer, $timeStr';
+    } else {
+      return '${date.day}/${date.month}, $timeStr';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -367,22 +447,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         
         const SizedBox(height: AppTheme.spacingM),
         
-        // Lista de rituales recientes
-        ...List.generate(3, (index) {
-          final rituals = [
-            _RecentRitual('Respiración 4-7-8', 'Hoy, 08:30', true),
-            _RecentRitual('Estiramientos suaves', 'Hoy, 12:15', true),
-            _RecentRitual('Gratitud consciente', 'Ayer, 21:00', true),
-          ];
-          
-          return Padding(
+        // Lista de rituales recientes o mensaje vacío
+        if (_recentCompletions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spacingL),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? AppColors.darkSurface.withOpacity(0.5) 
+                  : AppColors.lightSurface.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(AppTheme.radiusM),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.history_rounded,
+                  color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                ),
+                const SizedBox(width: AppTheme.spacingM),
+                Expanded(
+                  child: Text(
+                    'Completa tu primer ritual para ver tu historial aquí',
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ..._recentCompletions.map((completion) => Padding(
             padding: const EdgeInsets.only(bottom: AppTheme.spacingS),
             child: _RitualHistoryItem(
-              ritual: rituals[index],
+              ritual: _RecentRitual(completion.title, completion.dateStr, completion.completed),
               isDark: isDark,
             ),
-          );
-        }),
+          )),
       ],
     ).animate().fadeIn(duration: 500.ms, delay: 500.ms).slideY(begin: 0.1, end: 0);
   }
@@ -601,6 +701,15 @@ class _RecentRitual {
   final bool completed;
 
   _RecentRitual(this.name, this.time, this.completed);
+}
+
+/// Completación reciente para mostrar en el historial
+class _RecentCompletion {
+  final String title;
+  final String dateStr;
+  final bool completed;
+
+  _RecentCompletion(this.title, this.dateStr, this.completed);
 }
 
 /// Item del historial de rituales

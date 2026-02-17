@@ -12,6 +12,7 @@ class RitualsState {
   final List<RitualDbModel> rituals;
   final List<RitualCompletionDbModel> todayCompletions;
   final Map<String, StreakDbModel> streaks;
+  final Map<String, double> ritualProgress; // Progreso parcial de rituales
   final bool isLoading;
   final String? error;
   final DateTime lastUpdated;
@@ -22,6 +23,7 @@ class RitualsState {
     this.rituals = const [],
     this.todayCompletions = const [],
     this.streaks = const {},
+    this.ritualProgress = const {},
     this.isLoading = false,
     this.error,
     required this.lastUpdated,
@@ -33,6 +35,7 @@ class RitualsState {
     List<RitualDbModel>? rituals,
     List<RitualCompletionDbModel>? todayCompletions,
     Map<String, StreakDbModel>? streaks,
+    Map<String, double>? ritualProgress,
     bool? isLoading,
     String? error,
     DateTime? lastUpdated,
@@ -44,6 +47,7 @@ class RitualsState {
       rituals: rituals ?? this.rituals,
       todayCompletions: todayCompletions ?? this.todayCompletions,
       streaks: streaks ?? this.streaks,
+      ritualProgress: ritualProgress ?? this.ritualProgress,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
       lastUpdated: lastUpdated ?? this.lastUpdated,
@@ -62,10 +66,12 @@ class RitualsState {
         ),
       );
       final isCompleted = completion.id.isNotEmpty;
+      final progress = ritualProgress[r.id] ?? 0.0;
       
       return r.toRitualModel().copyWith(
         isCompleted: isCompleted,
         completedAt: isCompleted ? completion.completedAt : null,
+        progress: isCompleted ? 1.0 : progress,
       );
     }).toList();
   }
@@ -337,6 +343,17 @@ class RitualsNotifier extends StateNotifier<RitualsState> {
       state = state.copyWith(error: 'Error al completar ritual: $e');
       return false;
     }
+  }
+
+  /// Actualizar progreso parcial de un ritual (cuando se pausa)
+  void updateRitualProgress(String ritualId, double progress) {
+    final updatedProgress = Map<String, double>.from(state.ritualProgress);
+    updatedProgress[ritualId] = progress;
+    
+    state = state.copyWith(
+      ritualProgress: updatedProgress,
+      lastUpdated: DateTime.now(),
+    );
   }
 
   /// Actualizar un ritual (funciona offline)

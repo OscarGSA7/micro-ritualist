@@ -307,14 +307,8 @@ BEGIN
     INSERT INTO public.user_settings (user_id)
     VALUES (NEW.id);
     
-    -- Crear rituales predefinidos para el nuevo usuario
-    INSERT INTO public.rituals (user_id, title, description, duration_minutes, category, icon_name, color_hex, is_default, sort_order)
-    VALUES 
-        (NEW.id, 'Respiración 4-7-8', 'Técnica de respiración para relajación profunda', 3, 'breathing', 'air_rounded', '#06B6D4', TRUE, 1),
-        (NEW.id, 'Estiramientos matutinos', 'Estiramientos suaves para activar el cuerpo', 5, 'movement', 'directions_walk_rounded', '#10B981', TRUE, 2),
-        (NEW.id, 'Meditación express', 'Momento de calma y mindfulness', 3, 'mindfulness', 'self_improvement_rounded', '#6366F1', TRUE, 3),
-        (NEW.id, 'Hidratación consciente', 'Beber agua con atención plena', 2, 'hydration', 'local_drink_rounded', '#3B82F6', TRUE, 4),
-        (NEW.id, 'Gratitud diaria', 'Reflexión sobre 3 cosas buenas del día', 3, 'gratitude', 'favorite_rounded', '#F43F5E', TRUE, 5);
+    -- Las cuentas nuevas empiezan sin rituales predefinidos
+    -- El usuario puede crear sus propios rituales desde la app
     
     RETURN NEW;
 END;

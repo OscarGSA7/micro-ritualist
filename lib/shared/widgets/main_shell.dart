@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/providers/rituals_provider.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/rituals_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -11,14 +13,14 @@ import 'app_bottom_navigation.dart';
 /// 
 /// Contiene el BottomNavigationBar persistente y maneja la navegación
 /// entre las pantallas principales de la app
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   int _currentIndex = NavIndex.home.value;
   
   // Controlador de PageView para transiciones suaves
@@ -83,15 +85,30 @@ class _MainShellState extends State<MainShell> {
           ),
           child: CreateRitualScreen(
             scrollController: scrollController,
-            onRitualCreated: (ritual) {
+            onRitualCreated: (ritual) async {
               Navigator.pop(context);
-              // TODO: Añadir el ritual a la lista
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Rutina "${ritual.title}" creada'),
-                  backgroundColor: AppColors.success,
-                ),
+              // Guardar el ritual en la base de datos
+              final success = await ref.read(ritualsProvider.notifier).createRitual(
+                title: ritual.title,
+                description: ritual.description,
+                durationMinutes: ritual.durationMinutes,
+                category: ritual.category,
+                icon: ritual.icon,
+                color: ritual.color,
               );
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success 
+                          ? 'Rutina "${ritual.title}" creada'
+                          : 'Error al crear la rutina',
+                    ),
+                    backgroundColor: success ? AppColors.success : Colors.red,
+                  ),
+                );
+              }
             },
             onCancel: () => Navigator.pop(context),
           ),

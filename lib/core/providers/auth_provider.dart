@@ -232,6 +232,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       if (response != null && response.user != null) {
+        // Verificar si requiere confirmación de email
+        if (response.user!.emailConfirmedAt == null) {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Revisa tu email para confirmar tu cuenta. Si no llega, desactiva "Confirm email" en Supabase.',
+          );
+          return false;
+        }
+        
         // Limpiar estado de invitado
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_guestKey);
@@ -251,9 +260,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } on supabase.AuthException catch (e) {
       String errorMessage = 'Error al registrarse';
       if (e.message.contains('already registered')) {
-        errorMessage = 'Este email ya está registrado';
+        errorMessage = 'Este email ya está registrado. Intenta iniciar sesión.';
       } else if (e.message.contains('invalid')) {
         errorMessage = 'Email o contraseña inválidos';
+      } else if (e.message.contains('weak')) {
+        errorMessage = 'La contraseña es muy débil';
+      } else {
+        // Mostrar error real para depuración
+        errorMessage = 'Error: ${e.message}';
       }
       state = state.copyWith(isLoading: false, error: errorMessage);
       return false;

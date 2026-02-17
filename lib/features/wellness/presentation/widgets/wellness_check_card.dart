@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/providers/wellness_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/wellness_assessment_model.dart';
 import '../../services/wellness_analysis_service.dart';
+import '../screens/wellness_history_screen.dart';
 
 /// Widget de check-in de bienestar con selecciones
 /// Diseño paso a paso para evaluar el estado del usuario
-class WellnessCheckCard extends StatefulWidget {
+class WellnessCheckCard extends ConsumerStatefulWidget {
   final Function(WellnessAnalysisResult)? onAnalysisComplete;
 
   const WellnessCheckCard({
@@ -16,10 +19,10 @@ class WellnessCheckCard extends StatefulWidget {
   });
 
   @override
-  State<WellnessCheckCard> createState() => _WellnessCheckCardState();
+  ConsumerState<WellnessCheckCard> createState() => _WellnessCheckCardState();
 }
 
-class _WellnessCheckCardState extends State<WellnessCheckCard> {
+class _WellnessCheckCardState extends ConsumerState<WellnessCheckCard> {
   // Paso actual del check-in (0 = inicio, 1 = emociones, 2 = energía, 3 = sueño, 4 = resultado)
   int _currentStep = 0;
   
@@ -32,6 +35,30 @@ class _WellnessCheckCardState extends State<WellnessCheckCard> {
   WellnessAnalysisResult? _analysisResult;
   
   final _analysisService = WellnessAnalysisService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar datos guardados del provider después del primer frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSavedData();
+    });
+  }
+
+  void _loadSavedData() {
+    final wellnessState = ref.read(wellnessProvider);
+    
+    // Si ya hay un check-in de hoy, mostrar el resultado
+    if (wellnessState.hasCheckedInToday && wellnessState.todayResult != null) {
+      setState(() {
+        _selectedEmotion = wellnessState.todayEmotion;
+        _selectedEnergy = wellnessState.todayEnergy;
+        _selectedSleep = wellnessState.todaySleep;
+        _analysisResult = wellnessState.todayResult;
+        _currentStep = 4;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +113,8 @@ class _WellnessCheckCardState extends State<WellnessCheckCard> {
 
   /// Paso inicial - Invitación a hacer check-in
   Widget _buildStartStep(bool isDark) {
+    final historyCount = ref.watch(wellnessProvider).history.length;
+    
     return Column(
       key: const ValueKey('start'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,6 +144,15 @@ class _WellnessCheckCardState extends State<WellnessCheckCard> {
           Icons.play_arrow_rounded,
           () => setState(() => _currentStep = 1),
         ),
+        if (historyCount > 0) ...[
+          const SizedBox(height: AppTheme.spacingM),
+          _buildSecondaryButton(
+            isDark,
+            'Ver historial ($historyCount)',
+            Icons.history_rounded,
+            () => _navigateToHistory(context),
+          ),
+        ],
       ],
     ).animate().fadeIn(duration: 300.ms);
   }
@@ -626,6 +664,15 @@ class _WellnessCheckCardState extends State<WellnessCheckCard> {
     );
   }
 
+  void _navigateToHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const WellnessHistoryScreen(),
+      ),
+    );
+  }
+
   void _runAnalysis() {
     final assessment = WellnessAssessment(
       emotionalState: _selectedEmotion!,
@@ -641,10 +688,21 @@ class _WellnessCheckCardState extends State<WellnessCheckCard> {
       _currentStep = 4;
     });
     
+    // Guardar en el provider para persistencia
+    ref.read(wellnessProvider.notifier).saveCheckIn(
+      emotion: _selectedEmotion!,
+      energy: _selectedEnergy!,
+      sleep: _selectedSleep!,
+      result: result,
+    );
+    
     widget.onAnalysisComplete?.call(result);
   }
 
   void _resetCheckin() {
+    // Resetear también en el provider
+    ref.read(wellnessProvider.notifier).resetTodayCheckIn();
+    
     setState(() {
       _currentStep = 0;
       _selectedEmotion = null;
