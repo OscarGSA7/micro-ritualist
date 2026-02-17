@@ -12,7 +12,9 @@ class RitualCard extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onStart;
   final VoidCallback? onComplete;
+  final VoidCallback? onDelete;
   final int animationIndex;
+  final bool showDeleteAction;
 
   const RitualCard({
     super.key,
@@ -20,7 +22,9 @@ class RitualCard extends StatefulWidget {
     this.onTap,
     this.onStart,
     this.onComplete,
+    this.onDelete,
     this.animationIndex = 0,
+    this.showDeleteAction = true,
   });
 
   @override
@@ -35,7 +39,7 @@ class _RitualCardState extends State<RitualCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ritual = widget.ritual;
     
-    return GestureDetector(
+    Widget card = GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
@@ -154,7 +158,21 @@ class _RitualCardState extends State<RitualCard> {
           ),
         ),
       ),
-    )
+    );
+
+    // Envolver en Dismissible si se permite eliminar
+    if (widget.showDeleteAction && widget.onDelete != null) {
+      card = Dismissible(
+        key: Key(ritual.id),
+        direction: DismissDirection.endToStart,
+        background: _buildDeleteBackground(isDark),
+        confirmDismiss: (_) => _confirmDelete(context),
+        onDismissed: (_) => widget.onDelete?.call(),
+        child: card,
+      );
+    }
+
+    return card
     .animate()
     .fadeIn(
       duration: 400.ms,
@@ -167,6 +185,87 @@ class _RitualCardState extends State<RitualCard> {
       delay: Duration(milliseconds: 100 * widget.animationIndex),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  Widget _buildDeleteBackground(bool isDark) {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: AppTheme.spacingL),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(AppTheme.radiusL),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          const Icon(
+            Icons.delete_rounded,
+            color: Colors.red,
+            size: 24,
+          ),
+          const SizedBox(width: AppTheme.spacingS),
+          Text(
+            'Eliminar',
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusL),
+        ),
+        title: Text(
+          'Eliminar ritual',
+          style: TextStyle(
+            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          '¿Estás seguro de que deseas eliminar "${widget.ritual.title}"? Esta acción no se puede deshacer.',
+          style: TextStyle(
+            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.red.withOpacity(0.1),
+            ),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
   Widget _buildIconContainer(bool isDark, RitualModel ritual) {

@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/providers/rituals_provider.dart';
 import '../../data/models/ritual_model.dart';
 import '../widgets/ritual_card.dart';
 import '../screens/ritual_timer_screen.dart';
 
 /// Pantalla de todos los rituales
 /// Muestra una lista completa de rituales con filtros por categoría
-class RitualsScreen extends StatefulWidget {
+class RitualsScreen extends ConsumerStatefulWidget {
   const RitualsScreen({super.key});
 
   @override
-  State<RitualsScreen> createState() => _RitualsScreenState();
+  ConsumerState<RitualsScreen> createState() => _RitualsScreenState();
 }
 
-class _RitualsScreenState extends State<RitualsScreen> {
+class _RitualsScreenState extends ConsumerState<RitualsScreen> {
   RitualCategory? _selectedCategory;
 
-  // Datos de ejemplo - En producción vendrán del estado
-  final List<RitualModel> _allRituals = [
+  // Datos de ejemplo para cuando no hay conexión al backend
+  List<RitualModel> get _sampleRituals => [
     const RitualModel(
       id: '1',
       title: 'Respiración 4-7-8',
@@ -50,59 +52,82 @@ class _RitualsScreenState extends State<RitualsScreen> {
       progress: 0.0,
       category: RitualCategory.mindfulness,
     ),
-    const RitualModel(
-      id: '4',
-      title: 'Respiración box',
-      description: 'Inhala, sostén, exhala, sostén - 4 segundos cada uno',
-      durationMinutes: 4,
-      icon: Icons.air_rounded,
-      color: AppColors.lightPrimary,
-      progress: 0.5,
-      category: RitualCategory.breathing,
-    ),
-    const RitualModel(
-      id: '5',
-      title: 'Hidratación consciente',
-      description: 'Bebe un vaso de agua con atención plena',
-      durationMinutes: 1,
-      icon: Icons.water_drop_rounded,
-      color: Color(0xFF38BDF8),
-      progress: 1.0,
-      isCompleted: true,
-      category: RitualCategory.hydration,
-    ),
-    const RitualModel(
-      id: '6',
-      title: 'Caminata mindful',
-      description: 'Camina prestando atención a cada paso',
-      durationMinutes: 10,
-      icon: Icons.directions_walk_rounded,
-      color: AppColors.lightSecondary,
-      progress: 0.0,
-      category: RitualCategory.movement,
-    ),
-    const RitualModel(
-      id: '7',
-      title: 'Diario de gratitud',
-      description: 'Escribe 3 cosas por las que estás agradecido',
-      durationMinutes: 5,
-      icon: Icons.edit_note_rounded,
-      color: AppColors.lightAccent,
-      progress: 0.0,
-      category: RitualCategory.gratitude,
-    ),
   ];
 
-  List<RitualModel> get _filteredRituals {
-    if (_selectedCategory == null) {
-      return _allRituals;
+  List<RitualModel> _getRituals(RitualsState state) {
+    // Convertir rituales del backend a RitualModel para la UI
+    final List<RitualModel> rituals;
+    
+    if (state.rituals.isEmpty) {
+      rituals = _sampleRituals;
+    } else {
+      rituals = state.rituals.map((r) {
+        final todayCompletion = state.todayCompletions.any((c) => c.ritualId == r.id);
+        final streak = state.streaks[r.id];
+        
+        return RitualModel(
+          id: r.id,
+          title: r.title,
+          description: r.description ?? '',
+          durationMinutes: r.durationMinutes,
+          icon: _getIconFromName(r.iconName),
+          color: _getColorFromHex(r.colorHex),
+          progress: todayCompletion ? 1.0 : 0.0,
+          isCompleted: todayCompletion,
+          category: _getCategoryFromString(r.category),
+          streak: streak?.currentStreak ?? 0,
+        );
+      }).toList();
     }
-    return _allRituals.where((r) => r.category == _selectedCategory).toList();
+    
+    if (_selectedCategory == null) {
+      return rituals;
+    }
+    return rituals.where((r) => r.category == _selectedCategory).toList();
+  }
+
+  IconData _getIconFromName(String iconName) {
+    const iconMap = {
+      'self_improvement_rounded': Icons.self_improvement_rounded,
+      'air_rounded': Icons.air_rounded,
+      'favorite_rounded': Icons.favorite_rounded,
+      'local_drink_rounded': Icons.local_drink_rounded,
+      'spa_rounded': Icons.spa_rounded,
+      'directions_walk_rounded': Icons.directions_walk_rounded,
+      'music_note_rounded': Icons.music_note_rounded,
+      'wb_sunny_rounded': Icons.wb_sunny_rounded,
+      'bedtime_rounded': Icons.bedtime_rounded,
+      'emoji_nature_rounded': Icons.emoji_nature_rounded,
+      'water_drop_rounded': Icons.water_drop_rounded,
+      'edit_note_rounded': Icons.edit_note_rounded,
+    };
+    return iconMap[iconName] ?? Icons.self_improvement_rounded;
+  }
+
+  Color _getColorFromHex(String? hexColor) {
+    if (hexColor == null || !hexColor.startsWith('#')) {
+      return AppColors.lightPrimary;
+    }
+    try {
+      return Color(int.parse('FF${hexColor.substring(1)}', radix: 16));
+    } catch (e) {
+      return AppColors.lightPrimary;
+    }
+  }
+
+  RitualCategory _getCategoryFromString(String? category) {
+    if (category == null) return RitualCategory.mindfulness;
+    return RitualCategory.values.firstWhere(
+      (c) => c.name.toLowerCase() == category.toLowerCase(),
+      orElse: () => RitualCategory.mindfulness,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ritualsState = ref.watch(ritualsProvider);
+    final filteredRituals = _getRituals(ritualsState);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
@@ -117,21 +142,108 @@ class _RitualsScreenState extends State<RitualsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Mis Rutinas',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ).animate().fadeIn(duration: 400.ms),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Mis Rutinas',
+                            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ).animate().fadeIn(duration: 400.ms),
+                        ),
+                        // Indicador de modo offline
+                        if (ritualsState.isOffline)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spacingS,
+                              vertical: AppTheme.spacingXS,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.cloud_off_rounded,
+                                  size: 14,
+                                  color: Colors.orange,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Offline',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        // Indicador de sincronización pendiente
+                        if (ritualsState.pendingSyncCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(left: AppTheme.spacingXS),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spacingS,
+                                vertical: AppTheme.spacingXS,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.lightPrimary.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.sync_rounded,
+                                    size: 14,
+                                    color: AppColors.lightPrimary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${ritualsState.pendingSyncCount}',
+                                    style: TextStyle(
+                                      color: AppColors.lightPrimary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: AppTheme.spacingS),
-                    Text(
-                      '${_filteredRituals.length} rutinas disponibles',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
-                      ),
-                    ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${filteredRituals.length} rutinas disponibles',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                          ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                        ),
+                        // Hint de deslizar para eliminar
+                        Text(
+                          'Desliza para eliminar',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.lightTextTertiary,
+                          ),
+                        ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -146,28 +258,77 @@ class _RitualsScreenState extends State<RitualsScreen> {
               child: SizedBox(height: AppTheme.spacingM),
             ),
 
-            // Lista de rituales
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index >= _filteredRituals.length) return null;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                      child: RitualCard(
-                        ritual: _filteredRituals[index],
-                        animationIndex: index,
-                        onTap: () => _onRitualTap(_filteredRituals[index]),
-                        onStart: () => _onRitualStart(_filteredRituals[index]),
-                        onComplete: () => _onRitualComplete(_filteredRituals[index]),
-                      ),
-                    );
-                  },
-                  childCount: _filteredRituals.length,
+            // Loading indicator
+            if (ritualsState.isLoading)
+              SliverToBoxAdapter(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTheme.spacingXL),
+                    child: CircularProgressIndicator(
+                      color: isDark ? AppColors.darkPrimary : AppColors.lightPrimary,
+                    ),
+                  ),
                 ),
               ),
-            ),
+
+            // Error message
+            if (ritualsState.error != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppTheme.spacingL),
+                  child: Container(
+                    padding: const EdgeInsets.all(AppTheme.spacingM),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusM),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.orange,
+                        ),
+                        const SizedBox(width: AppTheme.spacingS),
+                        Expanded(
+                          child: Text(
+                            ritualsState.error!,
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Lista de rituales
+            if (!ritualsState.isLoading)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index >= filteredRituals.length) return null;
+                      final ritual = filteredRituals[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
+                        child: RitualCard(
+                          ritual: ritual,
+                          animationIndex: index,
+                          onTap: () => _onRitualTap(ritual),
+                          onStart: () => _onRitualStart(ritual),
+                          onComplete: () => _onRitualComplete(ritual),
+                          onDelete: () => _onRitualDelete(ritual),
+                        ),
+                      );
+                    },
+                    childCount: filteredRituals.length,
+                  ),
+                ),
+              ),
 
             // Espacio inferior para el bottom nav
             const SliverToBoxAdapter(
@@ -269,12 +430,35 @@ class _RitualsScreenState extends State<RitualsScreen> {
 
     if (completed == true) {
       debugPrint('Ritual completed: ${ritual.title}');
-      // TODO: Actualizar estado del ritual
+      // Marcar como completado en el provider
+      ref.read(ritualsProvider.notifier).completeRitual(ritual.id);
     }
   }
 
   void _onRitualComplete(RitualModel ritual) {
     debugPrint('Ritual marked complete: ${ritual.title}');
-    // TODO: Marcar como completado
+    ref.read(ritualsProvider.notifier).completeRitual(ritual.id);
+  }
+
+  void _onRitualDelete(RitualModel ritual) async {
+    debugPrint('Ritual deleted: ${ritual.title}');
+    final success = await ref.read(ritualsProvider.notifier).deleteRitual(ritual.id);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success 
+                ? 'Ritual "${ritual.title}" eliminado'
+                : 'Error al eliminar el ritual',
+          ),
+          backgroundColor: success ? AppColors.success : Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusM),
+          ),
+        ),
+      );
+    }
   }
 }

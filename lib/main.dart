@@ -5,6 +5,8 @@ import 'core/theme/app_theme.dart';
 import 'core/constants/app_strings.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/services/supabase_service.dart';
+import 'core/services/sync_service.dart';
 import 'shared/widgets/main_shell.dart';
 import 'features/notifications/services/notification_service.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
@@ -36,6 +38,17 @@ void main() async {
       systemNavigationBarDividerColor: Colors.transparent,
     ),
   );
+
+  // Inicializar Supabase
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    debugPrint('⚠️ Supabase no inicializado: $e');
+    // La app puede funcionar en modo offline/invitado
+  }
+
+  // Inicializar servicio de sincronización
+  SyncService.instance.initialize();
 
   // Inicializar servicio de notificaciones
   await NotificationService().initialize();

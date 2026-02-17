@@ -12,6 +12,7 @@ class RitualModel {
   final bool isCompleted;
   final DateTime? completedAt;
   final RitualCategory category;
+  final int streak;
 
   const RitualModel({
     required this.id,
@@ -24,6 +25,7 @@ class RitualModel {
     this.isCompleted = false,
     this.completedAt,
     this.category = RitualCategory.mindfulness,
+    this.streak = 0,
   });
 
   RitualModel copyWith({
@@ -37,6 +39,7 @@ class RitualModel {
     bool? isCompleted,
     DateTime? completedAt,
     RitualCategory? category,
+    int? streak,
   }) {
     return RitualModel(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class RitualModel {
       isCompleted: isCompleted ?? this.isCompleted,
       completedAt: completedAt ?? this.completedAt,
       category: category ?? this.category,
+      streak: streak ?? this.streak,
     );
   }
 }
